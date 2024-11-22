@@ -16,12 +16,11 @@ This guide provides the simplest way to run Mistral.rs with CUDA support using a
 docker run --gpus all -p 8000:8000 \
   -v $HOME/.cache/huggingface:/root/.cache/huggingface \
   -e HUGGING_FACE_HUB_TOKEN=your_token_here \
-  -e TOK_MODEL_ID=mistralai/Mistral-7B-Instruct-v0.1 \
-  -e QUANTIZED_MODEL_ID=TheBloke/Mistral-7B-Instruct-v0.1-GGUF \
-  -e QUANTIZED_FILENAME=mistral-7b-instruct-v0.1.Q4_K_M.gguf \
+  -e TOK_MODEL_ID=meta-llama/Llama-3.2-3b-instruct \
+  -e QUANTIZED_MODEL_ID=QuantFactory/Llama-3.2-3B-Instruct-GGUF \
+  -e QUANTIZED_FILENAME=llama-3.2-3b-instruct.Q4_K_M.gguf \
   tribehealth/mistral-rs-cuda:latest \
-  gguf \
-  --port 8000
+  gguf
 ```
 
 ## What Each Flag Does
@@ -40,7 +39,6 @@ docker run --gpus all -p 8000:8000 \
 - `-p 8000:8000`: Exposes the OpenAI-compatible API on port 8000
 - `-v $HOME/.cache/huggingface:/root/.cache/huggingface`: Persists downloaded models
 - `gguf`: Subcommand to specify GGUF model type
-- `--port 8000`: The port to run the server on
 
 ## Finding GGUF Models
 
@@ -66,7 +64,7 @@ The response will show all available models and their capabilities:
   "object": "list",
   "data": [
     {
-      "id": "llama2",
+      "id": "llama-3.2-3b-instruct",
       "object": "model",
       "owned_by": "mistral.rs",
       "permission": []
@@ -83,7 +81,7 @@ Once running, test with curl:
 curl http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "llama2",
+    "model": "llama-3.2-3b-instruct",
     "messages": [{"role": "user", "content": "Hello, how are you?"}],
     "temperature": 0.7,
     "max_tokens": 100
