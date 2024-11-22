@@ -13,14 +13,13 @@ This guide provides the simplest way to run Mistral.rs with CUDA support using a
 ## One-Line Setup
 
 ```bash
-docker run --gpus all -p 8000:8000 \
+docker run --gpus all -p 8000:8000 --name mistralrs \
   -v $HOME/.cache/huggingface:/root/.cache/huggingface \
   -e HUGGING_FACE_HUB_TOKEN=$HUGGING_FACE_HUB_TOKEN \
   -e TOK_MODEL_ID=meta-llama/Llama-3.2-3b-instruct \
-  -e QUANTIZED_MODEL_ID=QuantFactory/Llama-3.2-3B-Instruct-GGUF \
-  -e QUANTIZED_FILENAME=llama-3.2-3b-instruct.Q4_K_M.gguf \
   tribehealth/mistral-rs-cuda:latest \
-  gguf
+  gguf --quantized-model-id QuantFactory/Llama-3.2-3B-Instruct-GGUF \
+  --quantized-filename llama-3.2-3b-instruct.Q4_K_M.gguf
 ```
 
 ## What Each Flag Does
