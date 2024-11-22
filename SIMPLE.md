@@ -26,16 +26,21 @@ docker run --gpus all -p 8000:8000 \
 
 ## What Each Flag Does
 
+### Mandatory Environment Variables
+- `-e TOK_MODEL_ID`: The original model ID for the tokenizer (e.g., mistralai/Mistral-7B-Instruct-v0.1)
+- `-e QUANTIZED_MODEL_ID`: The HuggingFace repository containing the GGUF model (e.g., TheBloke/Mistral-7B-Instruct-v0.1-GGUF)
+- `-e QUANTIZED_FILENAME`: The specific GGUF model file to use (e.g., mistral-7b-instruct-v0.1.Q4_K_M.gguf)
+
+### Optional Environment Variables
+- `-e HUGGING_FACE_HUB_TOKEN`: Your HuggingFace token for downloading gated models (required only if the model is not public)
+- `-e CUDA_VISIBLE_DEVICES`: Specify which GPU to use (default: 0)
+
+### Other Flags
 - `--gpus all`: Enables CUDA GPU support
 - `-p 8000:8000`: Exposes the OpenAI-compatible API on port 8000
 - `-v $HOME/.cache/huggingface:/root/.cache/huggingface`: Persists downloaded models
-- `-e TOK_MODEL_ID`: The original model ID for the tokenizer
-- `-e QUANTIZED_MODEL_ID`: The HuggingFace repository containing the GGUF model
-- `-e QUANTIZED_FILENAME`: The specific GGUF model file to use
-- `-e HUGGING_FACE_HUB_TOKEN`: Your HuggingFace token for downloading models
 - `gguf`: Subcommand to specify GGUF model type
 - `--port 8000`: The port to run the server on
-- `-e CUDA_VISIBLE_DEVICES=0`: Uses the first GPU
 
 ## Finding GGUF Models
 
@@ -45,6 +50,30 @@ docker run --gpus all -p 8000:8000 \
    - `TOK_MODEL_ID`: Use the original model ID (e.g., mistralai/Mistral-7B-Instruct-v0.1)
    - `QUANTIZED_MODEL_ID`: Use TheBloke's GGUF version (e.g., TheBloke/Mistral-7B-Instruct-v0.1-GGUF)
    - `QUANTIZED_FILENAME`: Use the specific GGUF file (e.g., mistral-7b-instruct-v0.1.Q4_K_M.gguf)
+
+## List Available Models
+
+To see which models are available on your server, use the OpenAI-compatible models endpoint:
+
+```bash
+curl http://localhost:8000/v1/models
+```
+
+The response will show all available models and their capabilities:
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "llama2",
+      "object": "model",
+      "owned_by": "mistral.rs",
+      "permission": []
+    }
+  ]
+}
+```
 
 ## Test the API
 
@@ -76,6 +105,18 @@ curl http://localhost:8000/v1/chat/completions \
 
 3. If model download fails:
    - Check your HuggingFace token is correct
+   - Set up your token using one of these methods:
+     ```bash
+     # Method 1: Using cache file (recommended)
+     mkdir -p ~/.cache/huggingface
+     echo "your_huggingface_token" > ~/.cache/huggingface/token
+
+     # Method 2: Using environment variable
+     export HUGGING_FACE_HUB_TOKEN=your_token_here
+
+     # Method 3: Using --token-source parameter
+     --token-source literal:your_token_here
+     ```
    - Ensure you have enough disk space
    - Check internet connectivity
 
