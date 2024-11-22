@@ -203,6 +203,103 @@ Enabling features is done by passing `--features ...` to the build system. When 
 - To enable a single feature like `metal`: `cargo build --release --features metal`.
 - To enable multiple features, specify them in quotes: `cargo build --release --features "cuda flash-attn cudnn"`.
 
+## Building Multi-Architecture Docker Images
+
+### Overview
+
+mistral.rs supports building Docker images optimized for multiple CUDA compute capabilities, ensuring optimal performance across different NVIDIA GPU architectures. This guide explains how to build and deploy these images.
+
+### CUDA Compute Capabilities
+
+The build process supports multiple NVIDIA GPU architectures through their compute capabilities:
+- `80`: NVIDIA A100, NVIDIA DGX-A100
+- `86`: NVIDIA RTX 3050-3090, A2-A40, NVIDIA T4
+- `89`: NVIDIA L4, NVIDIA RTX 4000 series
+- `90`: NVIDIA H100
+
+### Build Process
+
+The multi-architecture build process involves several key components:
+
+1. **Base Image Selection**:
+   - Builder stage: `nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04`
+   - Runtime stage: `nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04`
+   - These images provide the necessary CUDA and cuDNN dependencies
+
+2. **Build Environment Setup**:
+   ```dockerfile
+   ENV HUGGINGFACE_HUB_CACHE=/data
+   ENV PORT=80
+   ENV RAYON_NUM_THREADS=8
+   ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+   ```
+
+3. **Compilation Process**:
+   - Each compute capability is built separately to ensure optimal performance
+   - The build process uses nightly Rust for advanced CUDA features
+   - Compilation flags are optimized for parallel builds
+
+4. **Dependencies**:
+   - CUDA 12.4.1 with cuDNN
+   - OpenMP for CPU parallelization
+   - SSL for secure connections
+   - Other system libraries for runtime support
+
+### Building the Image
+
+To build the multi-architecture image:
+
+```bash
+docker build -t your-org/mistral-rs-cuda:latest -f Dockerfile.cuda-all .
+```
+
+### Technical Details
+
+1. **Separate Compilation Strategy**:
+   - Each compute capability is compiled independently
+   - This approach ensures optimal binary generation for each architecture
+   - The final image contains optimized code paths for all supported architectures
+
+2. **Runtime Optimization**:
+   - Dynamic library linking is optimized through symlink creation
+   - RAYON_NUM_THREADS is configured for optimal CPU utilization
+   - LD_LIBRARY_PATH is set up for proper CUDA library discovery
+
+3. **Health Monitoring**:
+   - Built-in health check endpoint at `/health`
+   - 30-second interval checks ensure service availability
+   - Configurable through environment variables
+
+### Best Practices
+
+1. **Resource Management**:
+   - Monitor GPU memory usage during inference
+   - Adjust RAYON_NUM_THREADS based on your CPU cores
+   - Use appropriate batch sizes for your GPU memory
+
+2. **Deployment Considerations**:
+   - Ensure proper NVIDIA driver installation on host
+   - Match container CUDA version with host driver compatibility
+   - Consider using nvidia-docker2 for proper GPU access
+
+3. **Performance Optimization**:
+   - Use the latest CUDA and cuDNN versions
+   - Configure thread counts based on hardware
+   - Monitor GPU utilization and memory usage
+
+### Troubleshooting
+
+Common issues and solutions:
+1. **Compilation Failures**:
+   - Ensure sufficient system memory (8GB+ recommended)
+   - Check CUDA toolkit installation
+   - Verify Rust nightly is properly installed
+
+2. **Runtime Issues**:
+   - Verify NVIDIA driver compatibility
+   - Check GPU compute capability support
+   - Monitor system resources during inference
+
 ## Installation and Build
 
 > Note: You can use our [Docker containers here](https://github.com/EricLBuehler/mistral.rs/pkgs/container/mistral.rs).
@@ -549,7 +646,6 @@ Please submit more benchmarks via raising an issue!
 |LLaVa Next|✅|
 |LLaVa|✅|
 |Llama 3.2 Vision| |
-
 
 ### Using derivative model
 

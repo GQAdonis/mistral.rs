@@ -17,6 +17,7 @@ docker run --gpus all -p 8000:8000 --name mistralrs \
   -v $HOME/.cache/huggingface:/root/.cache/huggingface \
   -e HUGGING_FACE_HUB_TOKEN=$HUGGING_FACE_HUB_TOKEN \
   -e TOK_MODEL_ID=meta-llama/Llama-3.2-3b-instruct \
+  -e CUDA_COMPUTE_CAP=86 \
   tribehealth/mistral-rs-cuda:latest \
   gguf --quantized-model-id QuantFactory/Llama-3.2-3B-Instruct-GGUF \
   --quantized-filename llama-3.2-3b-instruct.Q4_K_M.gguf
@@ -89,18 +90,43 @@ curl http://localhost:8000/v1/chat/completions \
 
 ## Troubleshooting
 
-1. If you see CUDA errors, ensure the NVIDIA Container Toolkit is properly installed:
+1. If you see CUDA errors like `CUDA_ERROR_NOT_SUPPORTED`, you need to specify the correct CUDA compute capability for your GPU:
+
+   First, check your GPU model:
+   ```bash
+   nvidia-smi
+   ```
+
+   Then use this table to find your compute capability:
+   - RTX 4090, 4080, 4070, etc (Ada Lovelace): 89
+   - RTX 3090, 3080, 3070, A10, A40, etc (Ampere): 86
+   - RTX 2080, 2070, etc (Turing): 75
+   - GTX 1080, 1070, etc (Pascal): 61
+
+   Add the compute capability to your docker run command:
+   ```bash
+   docker run --gpus all -p 8000:8000 --name mistralrs \
+     -v $HOME/.cache/huggingface:/root/.cache/huggingface \
+     -e HUGGING_FACE_HUB_TOKEN=$HUGGING_FACE_HUB_TOKEN \
+     -e TOK_MODEL_ID=meta-llama/Llama-3.2-3b-instruct \
+     -e CUDA_COMPUTE_CAP=86 \  # Add this line with your GPU's compute capability
+     tribehealth/mistral-rs-cuda:latest \
+     gguf --quantized-model-id QuantFactory/Llama-3.2-3B-Instruct-GGUF \
+     --quantized-filename llama-3.2-3b-instruct.Q4_K_M.gguf
+   ```
+
+2. If you see CUDA errors about missing drivers:
    ```bash
    sudo apt-get install -y nvidia-container-toolkit
    sudo systemctl restart docker
    ```
 
-2. Verify CUDA is available:
+3. Verify CUDA is available:
    ```bash
    docker run --gpus all nvidia/cuda:12.3.2-base-ubuntu22.04 nvidia-smi
    ```
 
-3. If model download fails:
+4. If model download fails:
    - Check your HuggingFace token is correct
    - Set up your token using one of these methods:
      ```bash
@@ -117,7 +143,7 @@ curl http://localhost:8000/v1/chat/completions \
    - Ensure you have enough disk space
    - Check internet connectivity
 
-4. For "out of memory" errors:
+5. For "out of memory" errors:
    - Try a smaller model
    - Reduce batch size
    - Use a GPU with more memory

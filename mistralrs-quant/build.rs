@@ -7,7 +7,11 @@ fn main() {
 
         println!("cargo:rerun-if-changed=build.rs");
 
-        let compute_cap = {
+        let compute_caps: Vec<usize> = if let Ok(caps) = std::env::var("CUDA_COMPUTE_CAP") {
+            caps.split(',')
+                .map(|s| s.trim().parse::<usize>().expect("Invalid CUDA_COMPUTE_CAP value"))
+                .collect()
+        } else {
             let mut cmd = Command::new("nvidia-smi");
             let output = String::from_utf8(
                 cmd.args(["--query-gpu=compute_cap", "--format=csv"])
@@ -16,18 +20,21 @@ fn main() {
                     .stdout,
             )
             .expect("Output of nvidia-smi was not utf8.");
-            (output
+            vec![(output
                 .split('\n')
                 .nth(1)
                 .unwrap()
                 .trim()
                 .parse::<f32>()
                 .unwrap()
-                * 100.) as usize
+                * 100.) as usize]
         };
 
+        // Use the highest compute capability for feature detection
+        let max_compute_cap = *compute_caps.iter().max().unwrap_or(&0);
+
         // ======== Handle optional marlin kernel compilation
-        let compile_marlin = compute_cap >= 800;
+        let compile_marlin = max_compute_cap >= 800;
         let mut marlin_ffi_ct = read_to_string(MARLIN_FFI_PATH).unwrap();
         let have_marlin = match compile_marlin {
             true => "true",
