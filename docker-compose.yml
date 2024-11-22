@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  mistral:
+    image: tribehealth/mistral-rs-cuda:latest
+    restart: unless-stopped
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}  # Required for model downloads
+      - HUGGINGFACE_HUB_CACHE=/data                       # Cache directory for models
+      - PORT=80                                           # Server port
+      - RAYON_NUM_THREADS=8                              # Number of threads for parallel processing
+    volumes:
+      - ./data:/data                                     # Persistent storage for downloaded models
+      - ./chat_templates:/chat_templates                 # Chat templates directory
+    ports:
+      - "8080:80"                                        # Map container port 80 to host port 8080
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
