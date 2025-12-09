@@ -3,8 +3,9 @@ use std::{
     hash::Hash,
     marker::PhantomData,
     ops::Deref,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::Arc,
 };
+use parking_lot::{Mutex, MutexGuard};
 
 use super::block_engine_sequence::BlockEngineSequence;
 use super::prefix_cacher::PrefixCacher;
@@ -89,23 +90,21 @@ pub struct PhysicalTokenBlock(pub Mutex<_PhysicalTokenBlock>);
 
 impl std::fmt::Debug for PhysicalTokenBlock {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.0.lock() {
-            Ok(inner) => f
-                .debug_struct("PhysicalTokenBlock")
-                .field("block_id", &inner.block_id)
-                .field("block_size", &inner.block_size)
-                .field("refcount", &inner.refcount)
-                .field("is_gpu", &inner.is_gpu)
-                .finish(),
-            Err(_) => write!(f, "PhysicalTokenBlock(<locked>)"),
-        }
+        let inner = self.0.lock();
+        f
+            .debug_struct("PhysicalTokenBlock")
+            .field("block_id", &inner.block_id)
+            .field("block_size", &inner.block_size)
+            .field("refcount", &inner.refcount)
+            .field("is_gpu", &inner.is_gpu)
+            .finish()
     }
 }
 
 impl PhysicalTokenBlock {
     pub fn deref_mut(&self) -> MutexGuard<'_, _PhysicalTokenBlock> {
         loop {
-            if let Ok(v) = self.0.try_lock() {
+            if let Some(v) = self.0.try_lock() {
                 return v;
             }
         }

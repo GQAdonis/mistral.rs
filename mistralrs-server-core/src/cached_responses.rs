@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use std::collections::HashMap;
-use std::sync::LazyLock;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, LazyLock};
+use parking_lot::RwLock;
 
 use crate::openai::{Message, ResponsesChunk, ResponsesObject};
 
@@ -57,13 +57,13 @@ impl Default for InMemoryResponseCache {
 
 impl ResponseCache for InMemoryResponseCache {
     fn store_response(&self, id: String, response: ResponsesObject) -> Result<()> {
-        let mut responses = self.responses.write().unwrap();
+        let mut responses = self.responses.write();
         responses.insert(id, response);
         Ok(())
     }
 
     fn get_response(&self, id: &str) -> Result<Option<ResponsesObject>> {
-        let responses = self.responses.read().unwrap();
+        let responses = self.responses.read();
         Ok(responses.get(id).cloned())
     }
 
@@ -74,9 +74,9 @@ impl ResponseCache for InMemoryResponseCache {
         //
         // We acquire all locks before any modifications to ensure atomicity.
         // The locks are released in reverse order when dropped at end of scope.
-        let mut responses = self.responses.write().unwrap();
-        let mut chunks = self.chunks.write().unwrap();
-        let mut histories = self.conversation_histories.write().unwrap();
+        let mut responses = self.responses.write();
+        let mut chunks = self.chunks.write();
+        let mut histories = self.conversation_histories.write();
 
         let response_removed = responses.remove(id).is_some();
         let chunks_removed = chunks.remove(id).is_some();
@@ -86,24 +86,24 @@ impl ResponseCache for InMemoryResponseCache {
     }
 
     fn store_chunks(&self, id: String, chunks: Vec<ResponsesChunk>) -> Result<()> {
-        let mut chunk_storage = self.chunks.write().unwrap();
+        let mut chunk_storage = self.chunks.write();
         chunk_storage.insert(id, chunks);
         Ok(())
     }
 
     fn get_chunks(&self, id: &str) -> Result<Option<Vec<ResponsesChunk>>> {
-        let chunks = self.chunks.read().unwrap();
+        let chunks = self.chunks.read();
         Ok(chunks.get(id).cloned())
     }
 
     fn store_conversation_history(&self, id: String, messages: Vec<Message>) -> Result<()> {
-        let mut histories = self.conversation_histories.write().unwrap();
+        let mut histories = self.conversation_histories.write();
         histories.insert(id, messages);
         Ok(())
     }
 
     fn get_conversation_history(&self, id: &str) -> Result<Option<Vec<Message>>> {
-        let histories = self.conversation_histories.read().unwrap();
+        let histories = self.conversation_histories.read();
         Ok(histories.get(id).cloned())
     }
 }
@@ -116,6 +116,9 @@ pub static RESPONSE_CACHE: LazyLock<Arc<dyn ResponseCache>> =
 pub fn get_response_cache() -> Arc<dyn ResponseCache> {
     RESPONSE_CACHE.clone()
 }
+
+#[cfg(test)]
+mod cached_responses_tests;
 
 #[cfg(test)]
 mod tests {

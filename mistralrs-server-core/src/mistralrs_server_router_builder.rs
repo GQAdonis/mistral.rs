@@ -22,6 +22,9 @@ use crate::{
     types::SharedMistralRsState,
 };
 
+#[cfg(feature = "parking-lot-scheduler")]
+use crate::handlers::metrics;
+
 // NOTE(EricLBuehler): Accept up to 50mb input
 const N_INPUT_SIZE: usize = 50;
 const MB_TO_B: usize = 1024 * 1024; // 1024 kb in a mb
@@ -194,7 +197,8 @@ fn init_router(
     // Use the provided base path or default to ""
     let prefix = base_path.unwrap_or("");
 
-    let mut router = Router::new()
+    #[cfg(not(feature = "parking-lot-scheduler"))]
+    let router = Router::new()
         .route("/v1/chat/completions", post(chatcompletions))
         .route("/v1/completions", post(completions))
         .route("/v1/embeddings", post(embeddings))
@@ -212,15 +216,38 @@ fn init_router(
         .layer(cors_layer)
         .layer(DefaultBodyLimit::max(router_max_body_limit))
         .with_state(state);
+    
+    #[cfg(feature = "parking-lot-scheduler")]
+    let router = Router::new()
+        .route("/v1/chat/completions", post(chatcompletions))
+        .route("/v1/completions", post(completions))
+        .route("/v1/embeddings", post(embeddings))
+        .route("/v1/models", get(models))
+        .route("/health", get(health))
+        .route("/", get(health))
+        .route("/re_isq", post(re_isq))
+        .route("/v1/images/generations", post(image_generation))
+        .route("/v1/audio/speech", post(speech_generation))
+        .route("/v1/responses", post(create_response))
+        .route(
+            "/v1/responses/{response_id}",
+            get(get_response).delete(delete_response),
+        )
+        .route("/v1/metrics", get(metrics))
+        .layer(cors_layer)
+        .layer(DefaultBodyLimit::max(router_max_body_limit))
+        .with_state(state);
 
-    if include_swagger_routes {
+    let router = if include_swagger_routes {
         let doc = get_openapi_doc(None);
 
-        router = router.merge(
+        router.merge(
             SwaggerUi::new(format!("{prefix}/docs"))
                 .url(format!("{prefix}/api-doc/openapi.json"), doc),
-        );
-    }
+        )
+    } else {
+        router
+    };
 
     Ok(router)
 }

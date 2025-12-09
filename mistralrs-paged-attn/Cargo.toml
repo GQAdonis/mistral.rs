@@ -20,6 +20,7 @@ objc2-metal = { workspace = true, optional = true }
 objc2-foundation = { workspace = true, optional = true }
 candle-metal-kernels = { workspace = true, optional = true }
 thiserror.workspace = true
+parking_lot.workspace = true
 
 [build-dependencies]
 bindgen_cuda = { workspace = true, optional = true }

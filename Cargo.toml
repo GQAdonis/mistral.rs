@@ -50,7 +50,7 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 futures = "0.3"
 clap = { version = "4.5.39", features = ["derive", "wrap_help"] }
-pyo3 = { version = "0.25.0", features = ["full", "extension-module", "either"] }
+pyo3 = { version = "0.27.2", features = ["full", "extension-module", "either"] }
 tokio = { version = "1.45.1", features = ["full", "rt-multi-thread"] }
 # All features but avif, avif increases the msrv dramatically
 image = { version = "0.25.6", default-features = false, features = [
@@ -76,6 +76,10 @@ reqwest = { version = "0.12.19", default-features = false, features = [
     "http2",
     "macos-system-configuration",
 ] }
+
+# Prometheus parking-lot scheduler for resource-constrained pools
+prometheus_parking_lot = { git = "https://github.com/Prometheus-AGS/prometheus-parking-lot-rs.git" }
+
 base64 = "0.22.1"
 half = "2.6.0"
 rayon = "1.10.0"
@@ -87,60 +91,60 @@ float8 = "0.5.0"
 regex = "1.11.1"
 objc2-metal = "0.3.1"
 objc2-foundation = "0.3.1"
-safetensors = "0.6.0"
-toml = "0.8.22"
+safetensors = "0.6.2"
+toml = "0.9.8"
 hf-hub = { version = "0.4.2", default-features = false, features = [
     "ureq",
     "tokio",
     "rustls-tls",
 ] }
 itertools = "0.14.0"
-rand = "0.9.1"
-rand_distr = "0.5.0"
+rand = "0.9.2"
+rand_distr = "0.5.1"
 cli-table = "0.5.0"
 dirs = "6.0.0"
-thiserror = "2.0.12"
-tokenizers = { version = "0.21.2", default-features = false }
-tokio-tungstenite = "0.24.0"
-tqdm = "0.7.0"
+thiserror = "2.0.17"
+tokenizers = { version = "0.21.4", default-features = false, features = ["fancy-regex"] }
+tokio-tungstenite = "0.28.0"
+tqdm = "0.8.0"
 chrono = "0.4.41"
 minijinja = { version = "2.10.2", features = ["builtins", "json"] }
 minijinja-contrib = { version = "2.10.2", features = ["pycompat"] }
 regex-automata = { version = "0.4.9", features = ["meta"] }
 rustc-hash = "2.1.1"
 vob = "3.0.4"
-cfgrammar = "0.13.10"
-lrtable = "0.13.10"
+cfgrammar = "0.14.0"
+lrtable = "0.14.0"
 galil-seiferas = "0.1.5"
-radix_trie = "0.2.1"
+radix_trie = "0.3.0"
 bytemuck = "1.23.0"
 tokio-rayon = "2.1.0"
 rand_isaac = "0.4.0"
-indicatif = { version = "0.17.11", features = ["rayon"] }
+indicatif = { version = "0.18.3", features = ["rayon"] }
 async-trait = "0.1.88"
-strum = { version = "0.27.1", features = ["derive"] }
-derive_more = { version = "2.0.1", default-features = false, features = ["from"] }
+strum = { version = "0.27.2", features = ["derive"] }
+derive_more = { version = "2.1.0", default-features = false, features = ["from"] }
 akin = "0.4.0"
 variantly = "0.4.0"
 derive-new = "0.7.0"
-sysinfo = "0.30.13"
+sysinfo = "0.37.2"
 csv = "1.3.1"
-bytemuck_derive = "1.9.3"
-uuid = "1.17.0"
-schemars = "0.8.22"
+bytemuck_derive = "1.10.0"
+uuid = "1.19.0"
+schemars = "1.1.0"
 serde_yaml = "0.9.34"
 serde_plain = "1.0.2"
 as-any = "0.3.2"
 llguidance = { version = "1.3.0", default-features = false, features = ["lark"] }
-toktrie_hf_tokenizers = "1.3.0"
+toktrie_hf_tokenizers = "1.4.0"
 objc = { version = "0.2.7" }
 serde-big-array = "0.5.1"
 interprocess = "2.2.3"
 urlencoding = "2.1.3"
-scraper = "0.23.1"
-html2text = "0.14.4"
+scraper = "0.25.0"
+html2text = "0.16.5"
 ordered-float = "5.0.0"
-hashbrown = "0.15.3"
+hashbrown = "0.16.1"
 parking_lot = "0.12.4"
 ahash = "0.8.12"
 num-traits = "0.2.19"
@@ -150,14 +154,14 @@ symphonia = { version = "0.5.4", default-features = false, features = ["mp3", "f
 lazy_static = "1.5"
 paste = "1.0.15"
 byteorder = "1.5.0"
-yoke = "0.7.5"
+yoke = "0.8.1"
 memmap2 = "0.9.5"
-pyo3-build-config = "0.25.0"
+pyo3-build-config = "0.27.2"
 ctrlc = "3.4.7"
 directories = "6.0.0"
 # Need to keep rustyline at 15.0.0 as 16.0.0 has a breaking change that conficts with `ctrlc`'s handling
 rustyline = { version = "15.0.0", default-features = false, features = ["with-file-history"] }
-tower-http = "0.6.6"
+tower-http = "0.6.8"
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
 futures-util = "0.3.31"
 axum_static = "1.7.1"

@@ -28,6 +28,7 @@ use rand_isaac::Isaac64Rng;
 use std::any::Any;
 use std::io;
 use std::sync::Arc;
+use parking_lot::Mutex as ParkingLotMutex;
 use tokenizers::Tokenizer;
 use tokio::sync::Mutex;
 use tracing::warn;
@@ -336,7 +337,7 @@ impl Pipeline for DiffusionPipeline {
         _logits: Vec<Tensor>,
         _prefix_cacher: &mut PrefixCacheManagerV2,
         _disable_eos_stop: bool,
-        _srng: Arc<std::sync::Mutex<Isaac64Rng>>,
+        _srng: Arc<ParkingLotMutex<Isaac64Rng>>,
     ) -> Result<(), candle_core::Error> {
         candle_core::bail!("`sample_causal_gen` is incompatible with `DiffusionPipeline`");
     }

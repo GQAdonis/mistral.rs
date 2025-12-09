@@ -57,6 +57,7 @@ mod layers_utils;
 pub mod matformer;
 mod models;
 mod paged_attention;
+pub mod parking_lot;
 mod pipeline;
 mod prefix_cacher;
 mod request;

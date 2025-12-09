@@ -12,6 +12,11 @@ use crate::{
     sequence::{SeqStepType, StopReason},
     tools, CompletionResponse, SchedulerConfig, DEBUG,
 };
+
+#[cfg(feature = "parking-lot-scheduler")]
+use crate::parking_lot::{
+    InferenceWorkerPool, InferenceWorkerPoolConfig, LlmExecutor, ResourceAdapter,
+};
 use interprocess::local_socket::{traits::Listener, ListenerOptions};
 use llguidance::ParserFactory;
 pub use logger::IntervalLogger;
@@ -40,6 +45,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use parking_lot::Mutex as ParkingLotMutex;
 
 use crate::{
     get_mut_arcmutex, handle_pipeline_forward_error,
@@ -160,7 +166,13 @@ pub struct Engine {
     search_callback: Option<Arc<search::SearchCallback>>,
     tool_callbacks: tools::ToolCallbacks,
     tool_callbacks_with_tools: tools::ToolCallbacksWithTools,
+    
+    #[cfg(not(feature = "parking-lot-scheduler"))]
     scheduler: Arc<Mutex<dyn Scheduler>>,
+    
+    #[cfg(feature = "parking-lot-scheduler")]
+    worker_pool: Option<Arc<InferenceWorkerPool>>,
+    
     id: Arc<Mutex<usize>>,
     no_kv_cache: bool,
     prefix_cacher: Arc<Mutex<PrefixCacheManagerV2>>,
@@ -212,13 +224,23 @@ impl Engine {
             None => None,
         };
 
-        let scheduler = config.into_scheduler();
+        #[cfg(not(feature = "parking-lot-scheduler"))]
+        let scheduler = {
+            let scheduler = config.into_scheduler();
+            // Configure prefix caching on the scheduler based on the global no_prefix_cache flag
+            // This ensures PagedAttention prefix caching respects the same setting
+            get_mut_arcmutex!(scheduler).set_prefix_caching_enabled(!no_prefix_cache);
+            scheduler
+        };
 
-        // Configure prefix caching on the scheduler based on the global no_prefix_cache flag
-        // This ensures PagedAttention prefix caching respects the same setting
-        get_mut_arcmutex!(scheduler).set_prefix_caching_enabled(!no_prefix_cache);
+        #[cfg(feature = "parking-lot-scheduler")]
+        let worker_pool = None; // Will be initialized when using parking-lot scheduler
 
+        #[cfg(not(feature = "parking-lot-scheduler"))]
         let block_engine = get_mut_arcmutex!(scheduler).block_engine();
+        
+        #[cfg(feature = "parking-lot-scheduler")]
+        let block_engine = None; // TODO: Get from worker pool
 
         Ok(Self {
             tx,
@@ -228,7 +250,13 @@ impl Engine {
             search_callback,
             tool_callbacks,
             tool_callbacks_with_tools,
+            
+            #[cfg(not(feature = "parking-lot-scheduler"))]
             scheduler: scheduler.clone(),
+            
+            #[cfg(feature = "parking-lot-scheduler")]
+            worker_pool,
+            
             id: Arc::new(Mutex::new(0)),
             no_kv_cache,
             prefix_cacher: Arc::new(Mutex::new(PrefixCacheManagerV2::new(
@@ -263,7 +291,7 @@ impl Engine {
             self.logger.enable_logging();
         }
 
-        let rng = Arc::new(std::sync::Mutex::new(Isaac64Rng::seed_from_u64(SEED)));
+        let rng = Arc::new(ParkingLotMutex::new(Isaac64Rng::seed_from_u64(SEED)));
         let mut last_completion_ids: Vec<usize> = vec![];
         'lp: loop {
             let should_terminate = || {
@@ -308,10 +336,15 @@ impl Engine {
                 break 'lp;
             }
 
+            #[cfg(not(feature = "parking-lot-scheduler"))]
             let (waiting_len, running_len) = {
                 let scheduler = get_mut_arcmutex!(self.scheduler);
                 (scheduler.waiting_len(), scheduler.running_len())
             };
+            
+            #[cfg(feature = "parking-lot-scheduler")]
+            let (waiting_len, running_len) = (0, 0); // TODO: Get from worker pool stats
+            
             let scheduler_idle = waiting_len == 0 && running_len == 0;
 
             if scheduler_idle {
@@ -356,10 +389,16 @@ impl Engine {
                 self.replicate_request_to_daemons(&Request::TerminateAllSeqsNextStep);
             }
 
+            #[cfg(not(feature = "parking-lot-scheduler"))]
             let run_start = Instant::now();
+            
+            #[cfg(not(feature = "parking-lot-scheduler"))]
             let mut scheduler = get_mut_arcmutex!(self.scheduler);
+            
+            #[cfg(not(feature = "parking-lot-scheduler"))]
             let scheduled = scheduler.schedule(&self.logger);
 
+            #[cfg(not(feature = "parking-lot-scheduler"))]
             match scheduled {
                 SchedulerOutput::DefaultScheduler {
                     output: mut scheduled,
@@ -646,20 +685,29 @@ impl Engine {
                 }
             }
 
-            // Free Mamba state pool slots for finished sequences (hybrid models)
+            #[cfg(not(feature = "parking-lot-scheduler"))]
             {
-                let pipeline = get_mut_arcmutex!(self.pipeline);
-                if !pipeline.get_metadata().no_kv_cache && pipeline.cache().is_hybrid() {
-                    let mamba_indices = scheduler.get_finished_mamba_indices();
-                    if !mamba_indices.is_empty() {
-                        let mut hybrid_cache = pipeline.cache().hybrid();
-                        for idx in mamba_indices {
-                            hybrid_cache.free_seq(idx);
+                // Free Mamba state pool slots for finished sequences (hybrid models)
+                {
+                    let pipeline = get_mut_arcmutex!(self.pipeline);
+                    if !pipeline.get_metadata().no_kv_cache && pipeline.cache().is_hybrid() {
+                        let mamba_indices = scheduler.get_finished_mamba_indices();
+                        if !mamba_indices.is_empty() {
+                            let mut hybrid_cache = pipeline.cache().hybrid();
+                            for idx in mamba_indices {
+                                hybrid_cache.free_seq(idx);
+                            }
                         }
                     }
                 }
+                scheduler.free_finished_sequence_groups();
             }
-            scheduler.free_finished_sequence_groups();
+            
+            #[cfg(feature = "parking-lot-scheduler")]
+            {
+                // TODO: Implement worker pool scheduling loop
+                // For now, the parking-lot-scheduler feature is a no-op
+            }
         }
     }
 

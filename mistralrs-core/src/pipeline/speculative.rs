@@ -1,8 +1,9 @@
 use std::{
     any::Any,
-    sync::{Arc, Mutex},
+    sync::Arc,
     time::{Duration, Instant},
 };
+use parking_lot::Mutex as ParkingLotMutex;
 
 use anyhow::Result as anyhowResult;
 use candle_core::{Device, IndexOp, Result, Tensor};
@@ -328,7 +329,7 @@ impl Pipeline for SpeculativePipeline {
         _logits: Vec<Tensor>,
         _prefix_cacher: &mut PrefixCacheManagerV2,
         _disable_eos_stop: bool,
-        _rng: Arc<std::sync::Mutex<Isaac64Rng>>,
+        _rng: Arc<ParkingLotMutex<Isaac64Rng>>,
     ) -> Result<()> {
         unreachable!()
     }
@@ -339,7 +340,7 @@ impl Pipeline for SpeculativePipeline {
         _return_raw_logits: bool,
         prefix_cacher: &mut PrefixCacheManagerV2,
         disable_eos_stop: bool,
-        rng: Arc<Mutex<Isaac64Rng>>,
+        rng: Arc<ParkingLotMutex<Isaac64Rng>>,
         backend_metadata: CacheBackendMetadata,
     ) -> Result<Duration> {
         match backend_metadata {
@@ -434,7 +435,7 @@ impl Pipeline for SpeculativePipeline {
                         .as_ref()
                         .map(|(k, _)| k.dims()[2])
                         .unwrap_or(0),
-                    EitherCache::Normal(normal) => normal.lock().unwrap().0[0].current_seq_len(),
+                    EitherCache::Normal(normal) => normal.lock().0[0].current_seq_len(),
                     EitherCache::Hybrid(_) => {
                         unreachable!("Speculative decoding is not supported with hybrid caches")
                     }
@@ -500,7 +501,7 @@ impl Pipeline for SpeculativePipeline {
                         }
                     }
                     EitherCache::Normal(normal) => {
-                        for cache in &mut *normal.lock().unwrap().0 {
+                        for cache in &mut *normal.lock().0 {
                             cache
                                 .set_len(cache.current_seq_len() - n_not_accepted)
                                 .map_err(|_| candle_core::Error::msg("KV cache set_len failed."))?;
@@ -531,7 +532,7 @@ impl Pipeline for SpeculativePipeline {
                         }
                     }
                     EitherCache::Normal(normal) => {
-                        for cache in &mut *normal.lock().unwrap().0 {
+                        for cache in &mut *normal.lock().0 {
                             cache
                                 .set_len(cache.current_seq_len() - n_not_accepted)
                                 .map_err(|_| candle_core::Error::msg("KV cache set_len failed."))?;

@@ -66,7 +66,9 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use parking_lot::Mutex as ParkingLotMutex;
 use tokenizers::Tokenizer;
+use tokio::sync::Mutex;
 pub use vision::{VisionLoader, VisionLoaderBuilder, VisionSpecificConfig};
 
 use anyhow::Result;
@@ -411,7 +413,7 @@ pub trait Pipeline:
         return_raw_logits: bool,
         prefix_cacher: &mut PrefixCacheManagerV2,
         disable_eos_stop: bool,
-        rng: Arc<std::sync::Mutex<Isaac64Rng>>,
+        rng: Arc<ParkingLotMutex<Isaac64Rng>>,
         backend_metadata: CacheBackendMetadata,
     ) -> Result<Duration, candle_core::Error> {
         match backend_metadata {
@@ -847,7 +849,7 @@ pub trait Pipeline:
         logits: Vec<Tensor>,
         prefix_cacher: &mut PrefixCacheManagerV2,
         disable_eos_stop: bool,
-        rng: Arc<std::sync::Mutex<Isaac64Rng>>,
+        rng: Arc<ParkingLotMutex<Isaac64Rng>>,
     ) -> Result<(), candle_core::Error>;
 
     fn category(&self) -> ModelCategory;

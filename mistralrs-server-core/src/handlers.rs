@@ -95,3 +95,32 @@ pub async fn re_isq(
     state.get_sender(None).unwrap().send(request).await.unwrap();
     Ok(repr)
 }
+
+#[cfg(feature = "parking-lot-scheduler")]
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct MetricsResponse {
+    pub scheduler_type: String,
+    pub active_workers: usize,
+    pub queued_tasks: usize,
+    pub available_capacity: u32,
+    pub total_capacity: u32,
+}
+
+#[cfg(feature = "parking-lot-scheduler")]
+#[utoipa::path(
+  get,
+  tag = "Mistral.rs",
+  path = "/v1/metrics",
+  responses((status = 200, description = "Worker pool metrics", body = MetricsResponse))
+)]
+pub async fn metrics(State(_state): ExtractedMistralRsState) -> Json<MetricsResponse> {
+    // TODO: Get actual stats from worker pool
+    // For now, return placeholder data
+    Json(MetricsResponse {
+        scheduler_type: "parking-lot-worker-pool".to_string(),
+        active_workers: 0,
+        queued_tasks: 0,
+        available_capacity: 0,
+        total_capacity: 0,
+    })
+}

@@ -636,7 +636,18 @@ impl Engine {
             };
 
             *get_mut_arcmutex!(self.id) += 1;
-            get_mut_arcmutex!(self.scheduler).add_seq(seq);
+            
+            #[cfg(not(feature = "parking-lot-scheduler"))]
+            {
+                get_mut_arcmutex!(self.scheduler).add_seq(seq);
+            }
+            
+            #[cfg(feature = "parking-lot-scheduler")]
+            {
+                // TODO: Submit to worker pool
+                drop(seq); // Prevent unused variable warning
+            }
+            
             added_seq = true;
         }
         if added_seq {

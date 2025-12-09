@@ -9,7 +9,7 @@ impl MemoryUsage {
         match device {
             Device::Cpu => {
                 let mut sys = System::new_all();
-                sys.refresh_cpu();
+                sys.refresh_cpu_all();
                 Ok(usize::try_from(sys.available_memory())?)
             }
             #[cfg(feature = "cuda")]
@@ -48,7 +48,7 @@ impl MemoryUsage {
         match device {
             Device::Cpu => {
                 let mut sys = System::new_all();
-                sys.refresh_cpu();
+                sys.refresh_cpu_all();
                 Ok(usize::try_from(sys.total_memory())?)
             }
             #[cfg(feature = "cuda")]
@@ -74,7 +74,7 @@ impl MemoryUsage {
                 // Get system RAM in MB
                 let system_ram_mb = {
                     let mut sys = System::new_all();
-                    sys.refresh_cpu();
+                    sys.refresh_cpu_all();
                     usize::try_from(sys.total_memory())? / SIZE_IN_MB
                 };
 
