@@ -15,9 +15,7 @@ use crate::{
 };
 
 #[cfg(feature = "parking-lot-scheduler")]
-use crate::parking_lot::{
-    InferenceWorkerPool, InferenceWorkerPoolConfig, LlmExecutor, ResourceAdapter,
-};
+use crate::parking_lot::InferenceWorkerPool;
 use interprocess::local_socket::{traits::Listener, ListenerOptions};
 use llguidance::ParserFactory;
 pub use logger::IntervalLogger;
@@ -58,8 +56,11 @@ use crate::{
 };
 
 mod add_request;
+pub(crate) mod agentic_loop;
+pub use agentic_loop::DEFAULT_MAX_TOOL_ROUNDS;
+pub(crate) mod agentic_session;
+mod file_tools;
 mod logger;
-mod search_request;
 mod tool_dispatch;
 
 pub enum EngineInstruction {
@@ -181,6 +182,8 @@ pub struct Engine {
     logger: Arc<IntervalLogger>,
     handles: Arc<Mutex<Vec<JoinHandle<()>>>>,
     pending_notify: Arc<Notify>,
+    pub(crate) session_store: Arc<std::sync::Mutex<agentic_session::AgenticSessionStore>>,
+    pub(crate) file_store: crate::files::FileStore,
 }
 
 impl Drop for Engine {
@@ -207,6 +210,8 @@ impl Engine {
         search_callback: Option<Arc<search::SearchCallback>>,
         tool_callbacks: tools::ToolCallbacksWithTools,
         logger: Arc<IntervalLogger>,
+        session_store: Arc<std::sync::Mutex<agentic_session::AgenticSessionStore>>,
+        file_store: crate::files::FileStore,
         #[cfg(feature = "parking-lot-scheduler")]
         scheduler_config: Option<crate::parking_lot::ParkingLotSchedulerConfig>,
     ) -> anyhow::Result<Self> {
@@ -237,45 +242,21 @@ impl Engine {
 
         #[cfg(feature = "parking-lot-scheduler")]
         let worker_pool = {
-            use crate::parking_lot::{InferenceWorkerPool, InferenceWorkerPoolConfig, StreamingRegistry};
+            use crate::parking_lot::{InferenceWorkerPool, InferenceWorkerPoolConfig};
             use tracing::info;
-            
-            info!("🚀 Initializing prometheus_parking_lot WorkerPool for inference");
-            
-            // Create executor with the pipeline
-            let executor = LlmExecutor::new(pipeline.clone());
-            
-            // Create streaming registry
-            let streaming_registry = StreamingRegistry::with_default_retention();
-            
-            // Create worker pool config from scheduler_config or defaults
+
+            // The admission gate bounds concurrent in-flight requests in front of
+            // the engine; it does not execute inference (see the parking_lot
+            // module docs).
             let pool_config = if let Some(sched_config) = scheduler_config {
-                info!("📋 Using scheduler configuration from YAML/CLI");
+                info!("📋 Using parking-lot scheduler configuration from YAML/CLI");
                 InferenceWorkerPoolConfig::from_scheduler_config(sched_config)
             } else {
-                info!("📋 Using default scheduler configuration");
+                info!("📋 Using default parking-lot scheduler configuration");
                 InferenceWorkerPoolConfig::default()
             };
-            
-            info!("🔧 WorkerPool settings:");
-            info!("   Worker threads: {}", pool_config.worker_count);
-            if let Some(stack_size) = pool_config.thread_stack_size {
-                info!("   Thread stack size: {} bytes", stack_size);
-            }
-            info!("   Max units: {}", pool_config.max_units);
-            info!("   Max queue depth: {}", pool_config.max_queue_depth);
-            info!("   Timeout: {}s", pool_config.timeout_secs);
-            
-            match InferenceWorkerPool::new(executor, streaming_registry, pool_config) {
-                Ok(pool) => {
-                    info!("✅ WorkerPool initialized successfully");
-                    Some(Arc::new(pool))
-                }
-                Err(e) => {
-                    tracing::error!("❌ Failed to initialize WorkerPool: {:?}", e);
-                    None
-                }
-            }
+
+            Some(Arc::new(InferenceWorkerPool::new(pool_config)))
         };
 
         Ok(Self {
@@ -303,6 +284,8 @@ impl Engine {
             logger,
             handles: Arc::new(Mutex::new(Vec::new())),
             pending_notify: Arc::new(Notify::new()),
+            session_store,
+            file_store,
         })
     }
 
@@ -483,6 +466,17 @@ impl Engine {
                     }
 
                     if !scheduled.prompt.is_empty() {
+                        // Mirror the paged-attn arm: prime timing fields before step()
+                        // so update_time_info called from inside sampling sees them.
+                        let pre_step_now = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .expect("Time travel has occurred!")
+                            .as_millis();
+                        for seq in scheduled.prompt.iter_mut() {
+                            seq.prompt_timestamp = Some(pre_step_now);
+                            seq.set_step_start_instant();
+                        }
+
                         let prompt_exec_time = {
                             let mut pipeline = get_mut_arcmutex!(self.pipeline);
 
@@ -727,6 +721,14 @@ impl Engine {
                                 let metadata = PagedAttentionMeta {
                                     block_size,
                                     sliding_window: pipeline.get_metadata().sliding_window,
+                                    attention_backend: pipeline
+                                        .get_metadata()
+                                        .model_metadata
+                                        .as_ref()
+                                        .map(|metadata| metadata.attention_backend_kind())
+                                        .unwrap_or(
+                                            crate::paged_attention::AttentionBackendKind::Standard,
+                                        ),
                                     kv_cache_manager: scheduler.kv_cache_manager().unwrap(),
                                 };
 
